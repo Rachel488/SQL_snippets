@@ -1,0 +1,83 @@
+--Set1_Q2
+	SELECT f.title movie_name, c.name category,
+	SUM(f.rental_duration) total_rental_duration,
+	NTILE(4) OVER
+		(ORDER BY f.rental_duration) AS standard_quartile
+FROM category c
+JOIN film_category fc
+	ON c.category_id = fc.category_id
+JOIN film f
+	ON fc.film_id = f.film_id
+WHERE c.name IN ('Animation', 'Children', 'Classics', 'Comedy', 'Family', 'Music')
+GROUP BY category, movie_name, f.rental_duration
+ORDER BY category, movie_name;
+
+
+--Set1_Q3
+SELECT category, standard_quartile, COUNT(*)
+FROM (
+    SELECT c.name category, f.rental_duration,
+    NTILE(4) OVER
+    	(ORDER BY f.rental_duration) AS standard_quartile
+    FROM category c
+    JOIN film_category fc
+    	ON c.category_id = fc.category_id
+    JOIN film f
+    	ON fc.film_id = f.film_id
+    WHERE c.name IN ('Animation', 'Children', 'Classics', 'Comedy', 'Family', 'Music')) tt1
+ GROUP BY 1,2
+ ORDER BY 1,2;
+
+
+--Set2_Q2
+SELECT
+DATE_TRUNC('month', p.payment_date) pymt_month,
+CONCAT(c.first_name, ' ', c.last_name) full_name,
+COUNT(p.payment_id) pymt_per_month_count,
+SUM(p.amount) pymt_per_month_amt
+FROM payment p
+JOIN customer c
+	ON c.customer_id = p.customer_id
+JOIN(SELECT p.customer_id customer_tt1_id,
+    SUM(p.amount) total_pymt_amt
+    FROM payment p
+    GROUP BY 1
+    ORDER BY 2 DESC
+    LIMIT 10) tt1
+  ON c.customer_id = tt1.customer_tt1_id
+GROUP BY 1,2
+ORDER BY 2,1;
+
+--Set2_Q3
+WITH customer_pymts AS
+(SELECT
+DATE_TRUNC('month', p.payment_date) pymt_month,
+CONCAT(c.first_name, ' ', c.last_name) full_name,
+COUNT(p.payment_id) pymt_per_month_count,
+SUM(p.amount) pymt_per_month_amt
+FROM payment p
+JOIN customer c
+	ON c.customer_id = p.customer_id
+JOIN (SELECT p.customer_id customer_tt1_id,
+      SUM(p.amount) total_pymt_amt
+      FROM payment p
+      GROUP BY 1
+      ORDER BY 2 DESC
+      LIMIT 10) tt1
+  ON c.customer_id = tt1.customer_tt1_id
+GROUP BY 1,2
+ORDER BY 2,1),
+
+lag_pymts AS (
+SELECT full_name, pymt_month, pymt_per_month_amt,
+LAG (pymt_per_month_amt) OVER (
+	PARTITION BY full_name) lag_monthly_pymts
+FROM customer_pymts),
+
+monthly_diff AS(
+SELECT full_name, pymt_month, pymt_per_month_amt,
+(pymt_per_month_amt - lag_monthly_pymts) monthly_diff_pymts
+FROM lag_pymts)
+
+SELECT full_name, pymt_month, pymt_per_month_amt, monthly_diff_pymts
+FROM monthly_diff;
